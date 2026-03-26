@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { gameApi } from '../services/api';
-import { getSocket, connectSocket, trackRoom } from '../services/socket';
+import { getSocket, connectSocket, trackRoom, untrackRoom } from '../services/socket';
 import type {
   Game,
   GamePhase,
@@ -263,6 +263,12 @@ export const useGameStore = create<GameStoreState>((set, get) => ({
 
     console.log('[GameStore] Setting up listeners for game:', gameId);
 
+    // Join a game-specific socket channel immediately — gameId is known from URL
+    // This ensures events are received even if room channel membership is lost
+    socket.emit('room:join', { room_id: gameId });
+    trackRoom(gameId);
+    console.log('[GameStore] Joined game channel:', gameId);
+
     // -------- game:start --------
     const handleStart = (data: any) => {
       if (data.game_id !== gameId) return;
@@ -484,6 +490,10 @@ export const useGameStore = create<GameStoreState>((set, get) => ({
     socket.on('game:error', handleError);
 
     return () => {
+      // Leave game-specific channel
+      socket.emit('room:leave', { room_id: gameId });
+      untrackRoom(gameId);
+
       socket.off('game:start', handleStart);
       socket.off('game:round_start', handleRoundStart);
       socket.off('game:speech_phase_start', handleSpeechPhaseStart);

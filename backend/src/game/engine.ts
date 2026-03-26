@@ -113,7 +113,7 @@ function waitForOwnerConfirm(
 ): Promise<void> {
   return new Promise((resolve) => {
     // Emit the confirmation request to all clients
-    io.to(roomId).emit('game:confirm_needed', {
+    io.to(roomId).to(gameId).emit('game:confirm_needed', {
       game_id: gameId,
       confirm_type: confirmType,
       owner_id: ownerId,
@@ -128,7 +128,7 @@ function waitForOwnerConfirm(
     const timer = setTimeout(() => {
       gameEventBus.removeAllListeners(`confirm:${gameId}:${confirmType}`);
       console.log(`[ENGINE] Game ${gameId} - Confirm timeout for ${confirmType}, auto-continuing`);
-      io.to(roomId).emit('game:confirm_resolved', {
+      io.to(roomId).to(gameId).emit('game:confirm_resolved', {
         game_id: gameId,
         confirm_type: confirmType,
         auto: true,
@@ -140,7 +140,7 @@ function waitForOwnerConfirm(
     gameEventBus.once(`confirm:${gameId}:${confirmType}`, () => {
       clearTimeout(timer);
       console.log(`[ENGINE] Game ${gameId} - Owner confirmed: ${confirmType}`);
-      io.to(roomId).emit('game:confirm_resolved', {
+      io.to(roomId).to(gameId).emit('game:confirm_resolved', {
         game_id: gameId,
         confirm_type: confirmType,
         auto: false,
@@ -327,7 +327,7 @@ export async function startGame(roomId: string, io: SocketIOServer, preGenerated
     }
 
     // 7. Emit game start event (includes owner_id so clients know who can confirm)
-    io.to(roomId).emit('game:start', {
+    io.to(roomId).to(gameId).emit('game:start', {
       game_id: gameId,
       owner_id: ownerId,
       players: gamePlayers.map(gp => ({
@@ -370,7 +370,7 @@ export async function startGame(roomId: string, io: SocketIOServer, preGenerated
       console.log(`[ENGINE] Game ${gameId} - Round ${round} starting with ${gameState.alive_players.length} alive players`);
 
       // Emit round start
-      io.to(roomId).emit('game:round_start', {
+      io.to(roomId).to(gameId).emit('game:round_start', {
         game_id: gameId,
         round_number: round,
         alive_players: gameState.alive_players.map(p => ({
@@ -393,7 +393,7 @@ export async function startGame(roomId: string, io: SocketIOServer, preGenerated
         ...speakOrder.slice(0, startOffset),
       ];
 
-      io.to(roomId).emit('game:speech_phase_start', {
+      io.to(roomId).to(gameId).emit('game:speech_phase_start', {
         game_id: gameId,
         round_number: round,
         order: rotatedOrder.map(p => p.seat_index),
@@ -404,7 +404,7 @@ export async function startGame(roomId: string, io: SocketIOServer, preGenerated
       for (const player of rotatedOrder) {
         const speechPrompt = buildSpeechPrompt(player, gameState, speeches);
 
-        io.to(roomId).emit('game:player_speaking', {
+        io.to(roomId).to(gameId).emit('game:player_speaking', {
           game_id: gameId,
           round_number: round,
           seat_index: player.seat_index,
@@ -436,7 +436,7 @@ export async function startGame(roomId: string, io: SocketIOServer, preGenerated
         };
         speeches.push(speech);
 
-        io.to(roomId).emit('game:speech', {
+        io.to(roomId).to(gameId).emit('game:speech', {
           game_id: gameId,
           round_number: round,
           speech,
@@ -457,7 +457,7 @@ export async function startGame(roomId: string, io: SocketIOServer, preGenerated
       );
 
       // === Vote Phase ===
-      io.to(roomId).emit('game:vote_phase_start', {
+      io.to(roomId).to(gameId).emit('game:vote_phase_start', {
         game_id: gameId,
         round_number: round,
       });
@@ -509,7 +509,7 @@ export async function startGame(roomId: string, io: SocketIOServer, preGenerated
       votes.push(...voteResults);
 
       // Emit all votes
-      io.to(roomId).emit('game:votes', {
+      io.to(roomId).to(gameId).emit('game:votes', {
         game_id: gameId,
         round_number: round,
         votes: votes.map(v => ({
@@ -563,7 +563,7 @@ export async function startGame(roomId: string, io: SocketIOServer, preGenerated
             'UPDATE game_players SET is_alive = 0, eliminated_round = ? WHERE id = ?'
           ).run(round, eliminatedPlayer.id);
 
-          io.to(roomId).emit('game:elimination', {
+          io.to(roomId).to(gameId).emit('game:elimination', {
             game_id: gameId,
             round_number: round,
             eliminated: {
@@ -640,7 +640,7 @@ export async function startGame(roomId: string, io: SocketIOServer, preGenerated
     db.prepare('UPDATE room_players SET is_ready = 0 WHERE room_id = ?').run(roomId);
 
     // Emit game end
-    io.to(roomId).emit('game:end', {
+    io.to(roomId).to(gameId).emit('game:end', {
       game_id: gameId,
       result: gameResult,
       word_pair: wordPair,
