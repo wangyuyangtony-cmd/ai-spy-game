@@ -97,7 +97,7 @@ router.post('/', authMiddleware, (req: AuthRequest, res: Response): void => {
 
       ownerRoomPlayerId = uuidv4();
       db.prepare(
-        'INSERT INTO room_players (id, room_id, user_id, agent_id) VALUES (?, ?, ?, ?)'
+        'INSERT INTO room_players (id, room_id, user_id, agent_id, is_ready) VALUES (?, ?, ?, ?, 1)'
       ).run(ownerRoomPlayerId, id, userId, agent_id);
     }
 
@@ -271,9 +271,10 @@ router.post('/:id/join', authMiddleware, (req: AuthRequest, res: Response): void
 
     // Add player (one row per agent)
     const id = uuidv4();
+    const isOwner = room.owner_id === userId;
     db.prepare(
-      'INSERT INTO room_players (id, room_id, user_id, agent_id) VALUES (?, ?, ?, ?)'
-    ).run(id, roomId, userId, agent_id);
+      'INSERT INTO room_players (id, room_id, user_id, agent_id, is_ready) VALUES (?, ?, ?, ?, ?)'
+    ).run(id, roomId, userId, agent_id, isOwner ? 1 : 0);
 
     res.json({ message: 'Agent joined room successfully', room_player_id: id });
 

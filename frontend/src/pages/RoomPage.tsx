@@ -233,12 +233,14 @@ export default function RoomPage() {
                 <span className="text-sm text-gray-300">{p.agentName}</span>
                 <span
                   className={`text-[10px] px-1.5 py-0.5 rounded-full ${
-                    p.isReady
-                      ? 'bg-green-500/20 text-green-400'
+                    isHost || p.isReady
+                      ? isHost
+                        ? 'bg-yellow-500/20 text-yellow-400'
+                        : 'bg-green-500/20 text-green-400'
                       : 'bg-gray-500/20 text-gray-400'
                   }`}
                 >
-                  {p.isReady ? '已准备' : '未准备'}
+                  {isHost ? '房主' : p.isReady ? '已准备' : '未准备'}
                 </span>
                 {myPlayers.length > 1 && (
                   <button
