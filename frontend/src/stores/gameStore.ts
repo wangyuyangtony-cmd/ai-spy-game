@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { gameApi } from '../services/api';
-import { getSocket, connectSocket } from '../services/socket';
+import { getSocket, connectSocket, trackRoom } from '../services/socket';
 import type {
   Game,
   GamePhase,
@@ -247,6 +247,7 @@ export const useGameStore = create<GameStoreState>((set, get) => ({
     connectSocket();
     const socket = getSocket();
     socket.emit('room:join', { room_id: roomId });
+    trackRoom(roomId);
     console.log('[GameStore] Joined room channel:', roomId);
   },
 

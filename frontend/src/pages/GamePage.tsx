@@ -96,14 +96,23 @@ export default function GamePage() {
     }
   }, [game?.roomId]);
 
-  // 4. Auto-scroll feed
+  // 4. Periodic sync fallback — re-fetch game state in case socket events were missed
+  useEffect(() => {
+    if (!id || phase === 'finished') return;
+    const interval = setInterval(() => {
+      restoreFromReplay(id).catch(() => {});
+    }, 8000);
+    return () => clearInterval(interval);
+  }, [id, phase]);
+
+  // 5. Auto-scroll feed
   useEffect(() => {
     if (autoScroll) {
       feedEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     }
   }, [roundSpeeches, roundVotes, roundEliminations, currentRound, phase, autoScroll, confirmNeeded]);
 
-  // 5. Show elimination overlay when a new elimination occurs
+  // 6. Show elimination overlay when a new elimination occurs
   useEffect(() => {
     const elimKeys = Object.keys(roundEliminations);
     if (elimKeys.length > 0) {
@@ -118,7 +127,7 @@ export default function GamePage() {
     }
   }, [roundEliminations]);
 
-  // 6. Navigate to result after game ends
+  // 7. Navigate to result after game ends
   useEffect(() => {
     if (winner && phase === 'finished') {
       const timer = setTimeout(() => {
@@ -128,7 +137,7 @@ export default function GamePage() {
     }
   }, [winner, phase, id, navigate]);
 
-  // 7. Detect manual scroll to disable auto-scroll
+  // 8. Detect manual scroll to disable auto-scroll
   useEffect(() => {
     const container = feedContainerRef.current;
     if (!container) return;

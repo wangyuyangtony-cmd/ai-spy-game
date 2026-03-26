@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { roomApi } from '../services/api';
-import { getSocket, connectSocket } from '../services/socket';
+import { getSocket, connectSocket, trackRoom, untrackRoom } from '../services/socket';
 import type { Room, RoomConfig } from '../types';
 
 interface RoomState {
@@ -116,6 +116,7 @@ export const useRoomStore = create<RoomState>((set, get) => ({
       await roomApi.leave(id);
       const socket = getSocket();
       socket.emit('room:leave', { room_id: id });
+      untrackRoom(id);
       set({ currentRoom: null });
     } catch (err: any) {
       console.error('Failed to leave room:', err);
@@ -136,7 +137,16 @@ export const useRoomStore = create<RoomState>((set, get) => ({
   startGame: async (id) => {
     try {
       const res = await roomApi.start(id);
-      return res.gameId;
+      const gameId = res.gameId;
+      // Fallback: if socket game:start event hasn't set startedGameId after 1.5s, set it directly
+      // This ensures the owner always navigates even if the socket event is missed
+      setTimeout(() => {
+        if (!get().startedGameId && gameId) {
+          console.log('[RoomStore] Fallback: setting startedGameId from API response');
+          set({ startedGameId: gameId });
+        }
+      }, 1500);
+      return gameId;
     } catch (err: any) {
       const message = err.message || '开始游戏失败';
       throw new Error(message);
@@ -165,6 +175,7 @@ export const useRoomStore = create<RoomState>((set, get) => ({
     connectSocket();
     const socket = getSocket();
     socket.emit('room:join', { room_id: roomId });
+    trackRoom(roomId);
 
     const handleUserJoined = (_data: { user_id: string; socket_id: string }) => {
       get().fetchRoom(roomId).catch(console.error);
