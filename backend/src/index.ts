@@ -56,6 +56,28 @@ async function main(): Promise<void> {
   app.use('/api/games', gameRoutes);
   app.use('/api/history', historyRoutes);
 
+  // ============================================================
+  // LLM Configuration endpoints
+  // ============================================================
+  app.get('/api/llm/config', (_req, res) => {
+    res.json({
+      mock_mode: config.MOCK_MODE,
+      api_base: config.LLM_API_BASE,
+      default_model: config.LLM_DEFAULT_MODEL,
+      has_api_key: !!config.LLM_API_KEY,
+      available_free_models: [
+        { id: 'Qwen/Qwen2.5-7B-Instruct', name: 'Qwen2.5 7B (免费)', provider: 'SiliconFlow' },
+        { id: 'THUDM/GLM-4-9B-0414', name: 'GLM-4 9B (免费)', provider: 'SiliconFlow' },
+        { id: 'deepseek-ai/DeepSeek-R1-Distill-Qwen-7B', name: 'DeepSeek R1 7B (免费)', provider: 'SiliconFlow' },
+        { id: 'deepseek-ai/DeepSeek-R1-Distill-Qwen-14B', name: 'DeepSeek R1 14B (免费)', provider: 'SiliconFlow' },
+        { id: 'internlm/internlm2_5-7b-chat', name: 'InternLM2.5 7B (免费)', provider: 'SiliconFlow' },
+        { id: 'Qwen/Qwen2.5-Coder-32B-Instruct', name: 'Qwen2.5 Coder 32B', provider: 'SiliconFlow' },
+        { id: 'Qwen/Qwen2.5-32B-Instruct', name: 'Qwen2.5 32B', provider: 'SiliconFlow' },
+        { id: 'deepseek-ai/DeepSeek-V2.5', name: 'DeepSeek V2.5', provider: 'SiliconFlow' },
+      ],
+    });
+  });
+
   // ---- Serve Frontend Static Files (production) ----
   const frontendDist = path.resolve(__dirname, '../../frontend/dist');
   if (fs.existsSync(frontendDist)) {

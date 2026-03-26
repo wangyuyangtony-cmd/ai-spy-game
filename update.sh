@@ -13,4 +13,7 @@ cd ../frontend && npm run build
 echo "🚀 重启服务..."
 pm2 restart ai-spy-game
 
+sleep 2
+pm2 logs ai-spy-game --lines 5 --nostream
+
 echo "✅ 更新完成！"

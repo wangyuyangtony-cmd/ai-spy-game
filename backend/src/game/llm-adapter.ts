@@ -219,6 +219,7 @@ async function callLLMMock(messages: LLMMessage[]): Promise<LLMResult> {
 
 /**
  * Real LLM API call using OpenAI-compatible interface.
+ * Includes retry logic with exponential backoff.
  */
 async function callLLMReal(callConfig: LLMCallConfig & { model: string }): Promise<LLMResult> {
   const {
@@ -242,57 +243,82 @@ async function callLLMReal(callConfig: LLMCallConfig & { model: string }): Promi
   }
   fullMessages.push(...messages);
 
-  // Create an AbortController for timeout
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), config.LLM_TIMEOUT);
+  const maxRetries = 2;
+  let lastError: any = null;
 
-  try {
-    const response = await fetch(`${config.LLM_API_BASE}/chat/completions`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${config.LLM_API_KEY}`,
-      },
-      body: JSON.stringify({
-        model,
-        messages: fullMessages,
-        temperature,
-        top_p,
-        max_tokens,
-      }),
-      signal: controller.signal,
-    });
-
-    clearTimeout(timeoutId);
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error('[LLM] API error:', response.status, errorText);
-      // Fall back to mock on API error
-      return callLLMMock(messages);
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    if (attempt > 0) {
+      console.log(`[LLM] Retry attempt ${attempt}/${maxRetries}`);
+      await new Promise(resolve => setTimeout(resolve, 1000 * attempt));
     }
 
-    const data = await response.json() as any;
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), config.LLM_TIMEOUT);
 
-    return {
-      content: data.choices?.[0]?.message?.content || '...',
-      model: data.model || model,
-      usage: data.usage,
-    };
-  } catch (err: any) {
-    clearTimeout(timeoutId);
+    try {
+      const response = await fetch(`${config.LLM_API_BASE}/chat/completions`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${config.LLM_API_KEY}`,
+        },
+        body: JSON.stringify({
+          model,
+          messages: fullMessages,
+          temperature,
+          top_p,
+          max_tokens,
+        }),
+        signal: controller.signal,
+      });
 
-    if (err.name === 'AbortError') {
-      console.warn('[LLM] Request timed out, using default response');
+      clearTimeout(timeoutId);
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error(`[LLM] API error (attempt ${attempt}):`, response.status, errorText);
+        lastError = new Error(`API ${response.status}: ${errorText}`);
+        
+        // Don't retry on 4xx client errors (except 429 rate limit)
+        if (response.status >= 400 && response.status < 500 && response.status !== 429) {
+          break;
+        }
+        continue;
+      }
+
+      const data = await response.json() as any;
+      const content = data.choices?.[0]?.message?.content || '';
+
+      if (!content) {
+        console.warn('[LLM] Empty response from API');
+        lastError = new Error('Empty response');
+        continue;
+      }
+
+      console.log(`[LLM] Success (model: ${data.model || model}, tokens: ${data.usage?.total_tokens || '?'})`);
+
       return {
-        content: '我需要再想想...',
-        model: 'timeout-fallback',
+        content,
+        model: data.model || model,
+        usage: data.usage,
       };
-    }
+    } catch (err: any) {
+      clearTimeout(timeoutId);
+      lastError = err;
 
-    console.error('[LLM] Request failed:', err.message);
-    return callLLMMock(messages);
+      if (err.name === 'AbortError') {
+        console.warn(`[LLM] Request timed out (attempt ${attempt})`);
+        continue;
+      }
+
+      console.error(`[LLM] Request failed (attempt ${attempt}):`, err.message);
+      continue;
+    }
   }
+
+  // All retries exhausted — fall back to mock
+  console.warn('[LLM] All retries failed, falling back to mock. Last error:', lastError?.message);
+  return callLLMMock(messages);
 }
 
 /**
